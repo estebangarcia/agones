@@ -28,6 +28,8 @@ import (
 	getterv1 "agones.dev/agones/pkg/client/clientset/versioned/typed/agones/v1"
 	"agones.dev/agones/pkg/client/informers/externalversions"
 	listerv1 "agones.dev/agones/pkg/client/listers/agones/v1"
+	"agones.dev/agones/pkg/cloudproduct"
+	"agones.dev/agones/pkg/portallocator"
 	"agones.dev/agones/pkg/util/crd"
 	"agones.dev/agones/pkg/util/logfields"
 	"agones.dev/agones/pkg/util/runtime"
@@ -62,6 +64,8 @@ const (
 )
 
 // Controller is a the main GameServer crd controller
+//
+//nolint:govet // ignore fieldalignment, singleton
 type Controller struct {
 	baseLogger             *logrus.Entry
 	sidecarImage           string
@@ -80,7 +84,7 @@ type Controller struct {
 	gameServerSynced       cache.InformerSynced
 	nodeLister             corelisterv1.NodeLister
 	nodeSynced             cache.InformerSynced
-	portAllocator          *PortAllocator
+	portAllocator          portallocator.Interface
 	healthController       *HealthController
 	migrationController    *MigrationController
 	missingPodController   *MissingPodController
@@ -88,6 +92,7 @@ type Controller struct {
 	creationWorkerQueue    *workerqueue.WorkerQueue // handles creation only
 	deletionWorkerQueue    *workerqueue.WorkerQueue // handles deletion only
 	recorder               record.EventRecorder
+	cloudProduct           cloudproduct.CloudProduct
 }
 
 // NewController returns a new gameserver crd controller
@@ -106,7 +111,9 @@ func NewController(
 	kubeInformerFactory informers.SharedInformerFactory,
 	extClient extclientset.Interface,
 	agonesClient versioned.Interface,
-	agonesInformerFactory externalversions.SharedInformerFactory) *Controller {
+	agonesInformerFactory externalversions.SharedInformerFactory,
+	cloudProduct cloudproduct.CloudProduct,
+) *Controller {
 
 	pods := kubeInformerFactory.Core().V1().Pods()
 	gameServers := agonesInformerFactory.Agones().V1().GameServers()
@@ -129,10 +136,11 @@ func NewController(
 		gameServerSynced:       gsInformer.HasSynced,
 		nodeLister:             kubeInformerFactory.Core().V1().Nodes().Lister(),
 		nodeSynced:             kubeInformerFactory.Core().V1().Nodes().Informer().HasSynced,
-		portAllocator:          NewPortAllocator(minPort, maxPort, kubeInformerFactory, agonesInformerFactory),
+		portAllocator:          cloudProduct.NewPortAllocator(minPort, maxPort, kubeInformerFactory, agonesInformerFactory),
 		healthController:       NewHealthController(health, kubeClient, agonesClient, kubeInformerFactory, agonesInformerFactory),
-		migrationController:    NewMigrationController(health, kubeClient, agonesClient, kubeInformerFactory, agonesInformerFactory),
+		migrationController:    NewMigrationController(health, kubeClient, agonesClient, kubeInformerFactory, agonesInformerFactory, cloudProduct),
 		missingPodController:   NewMissingPodController(health, kubeClient, agonesClient, kubeInformerFactory, agonesInformerFactory),
+		cloudProduct:           cloudProduct,
 	}
 
 	c.baseLogger = runtime.NewLoggerWithType(c)
@@ -280,6 +288,11 @@ func (c *Controller) creationValidationHandler(review admissionv1.AdmissionRevie
 	c.loggerForGameServer(gs).WithField("review", review).Debug("creationValidationHandler")
 
 	causes, ok := gs.Validate()
+	// Merge product-specific validation - we handle it here to avoid introducing cloudproduct to the api packages.
+	if productCauses := c.cloudProduct.ValidateGameServer(gs); len(productCauses) > 0 {
+		ok = false
+		causes = append(causes, productCauses...)
+	}
 	if !ok {
 		review.Response.Allowed = false
 		details := metav1.StatusDetails{
@@ -765,7 +778,7 @@ func (c *Controller) syncGameServerStartingState(ctx context.Context, gs *agones
 		return gs, errors.Wrapf(err, "error retrieving node %s for Pod %s", pod.Spec.NodeName, pod.ObjectMeta.Name)
 	}
 	gsCopy := gs.DeepCopy()
-	gsCopy, err = applyGameServerAddressAndPort(gsCopy, node, pod)
+	gsCopy, err = applyGameServerAddressAndPort(gsCopy, node, pod, c.cloudProduct.SyncPodPortsToGameServer)
 	if err != nil {
 		return gs, err
 	}
@@ -816,7 +829,7 @@ func (c *Controller) syncGameServerRequestReadyState(ctx context.Context, gs *ag
 		if err != nil {
 			return gs, errors.Wrapf(err, "error retrieving node %s for Pod %s", pod.Spec.NodeName, pod.ObjectMeta.Name)
 		}
-		gsCopy, err = applyGameServerAddressAndPort(gsCopy, node, pod)
+		gsCopy, err = applyGameServerAddressAndPort(gsCopy, node, pod, c.cloudProduct.SyncPodPortsToGameServer)
 		if err != nil {
 			return gs, err
 		}

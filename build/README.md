@@ -38,6 +38,7 @@ Table of Contents
         * [make build-images](#make-build-images)
         * [make build-sdks](#make-build-sdks)
         * [make build-sdk](#make-build-sdk)
+        * [make run-sdk-command](#make-run-sdk-command)
         * [make run-sdk-conformance-tests](#make-run-sdk-conformance-tests)
         * [make clean-sdk-conformance-tests](#make-clean-sdk-conformance-tests)
         * [make test](#make-test)
@@ -198,7 +199,10 @@ See the table below for available customizations :
 | Parameter                                      | Description                                                                           | Default         |
 |------------------------------------------------|---------------------------------------------------------------------------------------|-----------------|
 | `GCP_CLUSTER_NAME`                             | The name of the cluster                                                               | `test-cluster`  |
-| `GCP_CLUSTER_ZONE`                             | The name of the Google Compute Engine zone in which the cluster will resides.         | `us-west1-c`    |
+| `GCP_CLUSTER_ZONE` or `GCP_CLUSTER_LOCATION`   | The name of the Google Compute Engine zone/location in which the cluster will resides | `us-west1-c`    |
+| `GCP_CLUSTER_NODEPOOL_AUTOSCALE`               | Whether or not to enable autoscaling on game server nodepool                          | `false`         |
+| `GCP_CLUSTER_NODEPOOL_MIN_NODECOUNT`           | The number of minimum nodes if autoscale is enabled                                   | `1`             |
+| `GCP_CLUSTER_NODEPOOL_MAX_NODECOUNT`           | The number of maximum nodes if autoscale is enabled                                   | `5`             |
 | `GCP_CLUSTER_NODEPOOL_INITIALNODECOUNT`        | The number of nodes to create in this cluster.                                        | `4`             |
 | `GCP_CLUSTER_NODEPOOL_MACHINETYPE`             | The name of a Google Compute Engine machine type.                                     | `e2-standard-4` |
 | `GCP_CLUSTER_NODEPOOL_ENABLEIMAGESTREAMING`    | Whether or not to enable image streaming for the `"default"` node pool in the cluster | `true`          |
@@ -479,6 +483,10 @@ Build all the sdks required for Agones
 #### `make build-sdk`
 Next command `make build-sdk SDK_FOLDER=[SDK_TYPE]` will build SDK of `SDK_TYPE`.
 For instance, in order to build the cpp sdk static and dynamic libraries (linux libraries only) use `SDK_FOLDER=cpp`
+
+#### `make run-sdk-command`
+Next command `make run-sdk-command COMMAND=[COMMAND] SDK_FOLDER=[SDK_TYPE]` will execute command for `SDK_TYPE`.
+For instance, in order to generate swagger codes when you change swagger.json definition, use `make run-sdk-command COMMAND=gen SDK_FOLDER=restapi`
 
 #### `make run-sdk-conformance-local`
 Run Agones sidecar which would wait for all requests from the SDK client.

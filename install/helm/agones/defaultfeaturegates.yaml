@@ -1,4 +1,4 @@
-# Copyright 2018 Google LLC All Rights Reserved.
+# Copyright 2022 Google LLC All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,13 +12,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-FROM hopsoft/graphite-statsd
+# Default values for feature gates. Keep in sync with pkg/util/runtime/features.go:featureDefaults
 
-# Locust
-RUN pip install locustio
-EXPOSE 8089 5557 5558
+# Beta features
+CustomFasSyncInterval: true
+StateAllocationFilter: true
 
-RUN mkdir /etc/service/locust
-COPY /locust-files ./
-COPY /run.sh /etc/service/locust/run
-RUN chmod +x /etc/service/locust/run
+# Alpha features
+LifecycleContract: false
+PlayerAllocationFilter: false
+PlayerTracking: false
+ResetMetricsOnDelete: false
+SDKGracefulTermination: false
+
+# Example feature
+Example: false

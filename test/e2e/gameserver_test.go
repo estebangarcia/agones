@@ -332,8 +332,9 @@ func TestGameServerRestartBeforeReadyCrash(t *testing.T) {
 	})
 	assert.NoError(t, err)
 
-	// check that the GameServer is not in an unhealthy state. If it does happen, it should happen pretty quick
-	newGs, err = framework.WaitForGameServerState(t, newGs, agonesv1.GameServerStateUnhealthy, 5*time.Second)
+	// check that the GameServer is not in an unhealthy state. If it does happen, it should happen pretty quick.
+	// We wait an extra 5s to close the kubelet race in #2445.
+	newGs, err = framework.WaitForGameServerState(t, newGs, agonesv1.GameServerStateUnhealthy, 10*time.Second)
 	// should be an error, as the state should not occur
 	if !assert.Error(t, err) {
 		assert.FailNow(t, "GameServer should not be Unhealthy")
@@ -926,7 +927,7 @@ spec:
           preferredDuringSchedulingIgnoredDuringExecution: ERROR
       containers:
         - name: simple-game-server
-          image: gcr.io/agones-images/simple-game-server:0.14
+          image: us-docker.pkg.dev/agones-images/examples/simple-game-server:0.14
 `
 	err := os.WriteFile("/tmp/invalid.yaml", []byte(gsYaml), 0o644)
 	require.NoError(t, err)

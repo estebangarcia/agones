@@ -26,6 +26,7 @@ import (
 
 	"agones.dev/agones/pkg/apis/agones"
 	agonesv1 "agones.dev/agones/pkg/apis/agones/v1"
+	"agones.dev/agones/pkg/cloudproduct"
 	agtesting "agones.dev/agones/pkg/testing"
 	"agones.dev/agones/pkg/util/webhooks"
 	"github.com/heptiolabs/healthcheck"
@@ -125,10 +126,10 @@ func TestControllerSyncGameServer(t *testing.T) {
 			return true, gs, nil
 		})
 
-		ctx, cancel := agtesting.StartInformers(mocks, c.gameServerSynced, c.portAllocator.nodeSynced)
+		ctx, cancel := agtesting.StartInformers(mocks, c.gameServerSynced)
 		defer cancel()
 
-		err := c.portAllocator.syncAll()
+		err := c.portAllocator.Run(ctx)
 		assert.Nil(t, err)
 
 		err = c.syncGameServer(ctx, "default/test")
@@ -212,10 +213,10 @@ func TestControllerSyncGameServerWithDevIP(t *testing.T) {
 			return true, gs, nil
 		})
 
-		ctx, cancel := agtesting.StartInformers(mocks, c.gameServerSynced, c.portAllocator.nodeSynced)
+		ctx, cancel := agtesting.StartInformers(mocks, c.gameServerSynced)
 		defer cancel()
 
-		err := c.portAllocator.syncAll()
+		err := c.portAllocator.Run(ctx)
 		assert.Nil(t, err)
 
 		err = c.syncGameServer(ctx, "default/test")
@@ -240,10 +241,10 @@ func TestControllerSyncGameServerWithDevIP(t *testing.T) {
 			return true, nil, nil
 		})
 
-		ctx, cancel := agtesting.StartInformers(mocks, c.gameServerSynced, c.portAllocator.nodeSynced)
+		ctx, cancel := agtesting.StartInformers(mocks, c.gameServerSynced)
 		defer cancel()
 
-		err := c.portAllocator.syncAll()
+		err := c.portAllocator.Run(ctx)
 		require.NoError(t, err)
 
 		err = c.syncGameServer(ctx, "default/test")
@@ -694,9 +695,9 @@ func TestControllerSyncGameServerPortAllocationState(t *testing.T) {
 			return true, gs, nil
 		})
 
-		ctx, cancel := agtesting.StartInformers(mocks, c.gameServerSynced, c.portAllocator.nodeSynced)
+		ctx, cancel := agtesting.StartInformers(mocks, c.gameServerSynced)
 		defer cancel()
-		err := c.portAllocator.syncAll()
+		err := c.portAllocator.Run(ctx)
 		require.NoError(t, err)
 
 		result, err := c.syncGameServerPortAllocationState(ctx, fixture)
@@ -733,9 +734,9 @@ func TestControllerSyncGameServerPortAllocationState(t *testing.T) {
 			return true, gs, errors.New("update-err")
 		})
 
-		ctx, cancel := agtesting.StartInformers(mocks, c.gameServerSynced, c.portAllocator.nodeSynced)
+		ctx, cancel := agtesting.StartInformers(mocks, c.gameServerSynced)
 		defer cancel()
-		err := c.portAllocator.syncAll()
+		err := c.portAllocator.Run(ctx)
 		require.NoError(t, err)
 
 		_, err = c.syncGameServerPortAllocationState(ctx, fixture)
@@ -1946,7 +1947,7 @@ func newFakeController() (*Controller, agtesting.Mocks) {
 		10, 20, "sidecar:dev", false,
 		resource.MustParse("0.05"), resource.MustParse("0.1"),
 		resource.MustParse("50Mi"), resource.MustParse("100Mi"), "sdk-service-account",
-		m.KubeClient, m.KubeInformerFactory, m.ExtClient, m.AgonesClient, m.AgonesInformerFactory)
+		m.KubeClient, m.KubeInformerFactory, m.ExtClient, m.AgonesClient, m.AgonesInformerFactory, cloudproduct.MustNewGeneric(context.Background()))
 	c.recorder = m.FakeRecorder
 	return c, m
 }
